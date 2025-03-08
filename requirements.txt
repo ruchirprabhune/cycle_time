@@ -7,7 +7,8 @@ opencv-python
 pillow
 torch
 ultralytics
-
+time
+tkinter_gui
 numpy
 pandas
 matplotlib
