@@ -1,2 +1,3 @@
 # cycle_time
-learning repo
+project repo for cycle time analysis using ai video analytics
+
