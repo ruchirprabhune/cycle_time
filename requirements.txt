@@ -1,0 +1,13 @@
+
+streamlit
+
+
+opencv-python
+pillow
+torch
+ultralytics
+
+numpy
+pandas
+matplotlib
+

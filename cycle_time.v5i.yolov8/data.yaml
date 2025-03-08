@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['bus']
+
+roboflow:
+  workspace: linecraft
+  project: cycle_time
+  version: 5
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/linecraft/cycle_time/dataset/5
