@@ -1,7 +1,8 @@
 plotly
 streamlit
 streamlit-plotly-events
-
+streamlit-drawable-canvas
+tkinter
 opencv-python
 pillow
 torch
