@@ -1,6 +1,6 @@
 plotly
 streamlit
-
+streamlit-plotly-events
 
 opencv-python
 pillow
