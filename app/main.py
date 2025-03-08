@@ -4,7 +4,6 @@ import multiprocessing
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
-import openai
 from tkinter_gui import run_tkinter
 from process_video import process_video_with_roi
 from dotenv import load_dotenv
