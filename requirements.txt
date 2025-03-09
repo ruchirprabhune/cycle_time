@@ -5,6 +5,7 @@ streamlit-drawable-canvas
 opencv-python-headless
 opencv-python
 pillow
+openai
 torch
 ultralytics
 python-dotenv
