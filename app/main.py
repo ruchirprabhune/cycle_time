@@ -5,11 +5,12 @@ import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
 import openai
+from tkinter_gui import run_tkinter
 from process_video import process_video_with_roi
 from dotenv import load_dotenv
 import cv2
-import numpy as np
 import time
+import streamlit as st
 import login
 
 # Display login page if not logged in
@@ -19,6 +20,7 @@ if not st.session_state.get("logged_in", False):
 
 # Now the main app is accessible only after login
 st.title(f"Welcome, {st.session_state['username']}!")
+
 st.write("This is your secured dashboard.")
 
 load_dotenv()
@@ -29,7 +31,7 @@ VIDEO_SERVER_URL = "http://127.0.0.1:9000"
 # Initialize session states
 session_states = [
     "roi_coords", "selected_cycle", "df",
-    "output_video_path", "uploaded_video_path", "temp_video_path", "roi_points"
+    "output_video_path", "uploaded_video_path", "temp_video_path"
 ]
 for state in session_states:
     if state not in st.session_state:
@@ -37,31 +39,7 @@ for state in session_states:
 
 st.title("AI Cycle Time Analysis")
 
-# Function to allow users to select ROI using Streamlit
-def select_roi_opencv(image):
-    """Allows user to select 4 ROI points on an image in Streamlit."""
-    st.session_state["roi_points"] = []  # Reset stored points
-
-    def click_event(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN and len(st.session_state["roi_points"]) < 4:
-            st.session_state["roi_points"].append((x, y))
-
-    clone = image.copy()
-    cv2.namedWindow("Select ROI - Click 4 Points")
-    cv2.setMouseCallback("Select ROI - Click 4 Points", click_event)
-
-    while len(st.session_state["roi_points"]) < 4:
-        temp_image = clone.copy()
-        for point in st.session_state["roi_points"]:
-            cv2.circle(temp_image, point, 5, (0, 0, 255), -1)
-        cv2.imshow("Select ROI - Click 4 Points", temp_image)
-        if cv2.waitKey(1) & 0xFF == ord("q"):  # Press 'q' to exit early
-            break
-
-    cv2.destroyAllWindows()
-    return st.session_state["roi_points"]
-
-# Upload Video or Capture from Webcam
+# Option for live stream input
 live_stream_option = st.checkbox("Enable Live Stream Input (Record from Webcam)")
 
 if live_stream_option:
@@ -102,18 +80,18 @@ if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        cap = cv2.VideoCapture(st.session_state["temp_video_path"])
-        ret, frame = cap.read()
-        cap.release()
-        if not ret:
-            st.error("Error: Could not read video frame.")
+        result_queue = multiprocessing.Queue()
+        # Use the stored temp_video_path
+        temp_video_path = st.session_state["temp_video_path"]
+        process = multiprocessing.Process(target=run_tkinter, args=(temp_video_path, result_queue))
+        process.start()
+        process.join()
+
+        if not result_queue.empty():
+            st.session_state["roi_coords"] = result_queue.get()
+            st.success(f"ROI Selected: {st.session_state['roi_coords']}")
         else:
-            roi_coords = select_roi_opencv(frame)
-            if len(roi_coords) == 4:
-                st.session_state["roi_coords"] = roi_coords
-                st.success(f"ROI Selected: {st.session_state['roi_coords']}")
-            else:
-                st.warning("ROI selection was incomplete.")
+            st.warning("No ROI was selected.")
 
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
@@ -160,3 +138,4 @@ if st.session_state["temp_video_path"]:
                     st.write(f"*Cycle {row['Cycle No.']}* ran from *{row['Start Time (s)']}s* to *{row['End Time (s)']}s* with a duration of *{row['Cycle Time (s)']:.2f} seconds*.")
                     clip_link = f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Maximum Cycle {row["Cycle No."]}</a>'
                     st.markdown(clip_link, unsafe_allow_html=True)
+
