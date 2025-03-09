@@ -1,23 +1,21 @@
 import streamlit as st
 import os
-import multiprocessing
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
-from tkinter_gui import run_tkinter
+import openai
 from process_video import process_video_with_roi
 from dotenv import load_dotenv
 import cv2
 import time
-import streamlit as st
 import login
+import numpy as np
 
 # Display login page if not logged in
 if not st.session_state.get("logged_in", False):
     login.login_page()
     st.stop()  # Stop execution so login page is shown
 
-# Now the main app is accessible only after login
 st.title(f"Welcome, {st.session_state['username']}!")
 
 st.write("This is your secured dashboard.")
@@ -79,18 +77,29 @@ if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        result_queue = multiprocessing.Queue()
-        # Use the stored temp_video_path
-        temp_video_path = st.session_state["temp_video_path"]
-        process = multiprocessing.Process(target=run_tkinter, args=(temp_video_path, result_queue))
-        process.start()
-        process.join()
+        video_path = st.session_state["temp_video_path"]
+        cap = cv2.VideoCapture(video_path)
+        
+        if cap.isOpened():
+            ret, frame = cap.read()
+            cap.release()
 
-        if not result_queue.empty():
-            st.session_state["roi_coords"] = result_queue.get()
-            st.success(f"ROI Selected: {st.session_state['roi_coords']}")
+            if ret:
+                st.image(frame, caption="Select ROI (Enter Coordinates Below)")
+
+                # ROI selection via input fields
+                x1 = st.number_input("X1", min_value=0, value=50, step=1)
+                y1 = st.number_input("Y1", min_value=0, value=50, step=1)
+                x2 = st.number_input("X2", min_value=0, value=200, step=1)
+                y2 = st.number_input("Y2", min_value=0, value=200, step=1)
+
+                if st.button("Save ROI"):
+                    st.session_state["roi_coords"] = [(x1, y1), (x2, y2)]
+                    st.success(f"ROI Saved: {st.session_state['roi_coords']}")
+            else:
+                st.error("Could not extract frame for ROI selection.")
         else:
-            st.warning("No ROI was selected.")
+            st.error("Could not open video file.")
 
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
