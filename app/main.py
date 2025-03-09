@@ -1,23 +1,24 @@
-import openai
 import streamlit as st
 import os
+import multiprocessing
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
+import openai
 from process_video import process_video_with_roi
 from dotenv import load_dotenv
 import cv2
+import numpy as np
 import time
 import login
-import numpy as np
 
 # Display login page if not logged in
 if not st.session_state.get("logged_in", False):
     login.login_page()
     st.stop()  # Stop execution so login page is shown
 
+# Now the main app is accessible only after login
 st.title(f"Welcome, {st.session_state['username']}!")
-
 st.write("This is your secured dashboard.")
 
 load_dotenv()
@@ -28,7 +29,7 @@ VIDEO_SERVER_URL = "http://127.0.0.1:9000"
 # Initialize session states
 session_states = [
     "roi_coords", "selected_cycle", "df",
-    "output_video_path", "uploaded_video_path", "temp_video_path"
+    "output_video_path", "uploaded_video_path", "temp_video_path", "roi_points"
 ]
 for state in session_states:
     if state not in st.session_state:
@@ -36,7 +37,31 @@ for state in session_states:
 
 st.title("AI Cycle Time Analysis")
 
-# Option for live stream input
+# Function to allow users to select ROI using Streamlit
+def select_roi_opencv(image):
+    """Allows user to select 4 ROI points on an image in Streamlit."""
+    st.session_state["roi_points"] = []  # Reset stored points
+
+    def click_event(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN and len(st.session_state["roi_points"]) < 4:
+            st.session_state["roi_points"].append((x, y))
+
+    clone = image.copy()
+    cv2.namedWindow("Select ROI - Click 4 Points")
+    cv2.setMouseCallback("Select ROI - Click 4 Points", click_event)
+
+    while len(st.session_state["roi_points"]) < 4:
+        temp_image = clone.copy()
+        for point in st.session_state["roi_points"]:
+            cv2.circle(temp_image, point, 5, (0, 0, 255), -1)
+        cv2.imshow("Select ROI - Click 4 Points", temp_image)
+        if cv2.waitKey(1) & 0xFF == ord("q"):  # Press 'q' to exit early
+            break
+
+    cv2.destroyAllWindows()
+    return st.session_state["roi_points"]
+
+# Upload Video or Capture from Webcam
 live_stream_option = st.checkbox("Enable Live Stream Input (Record from Webcam)")
 
 if live_stream_option:
@@ -77,29 +102,18 @@ if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        video_path = st.session_state["temp_video_path"]
-        cap = cv2.VideoCapture(video_path)
-        
-        if cap.isOpened():
-            ret, frame = cap.read()
-            cap.release()
-
-            if ret:
-                st.image(frame, caption="Select ROI (Enter Coordinates Below)")
-
-                # ROI selection via input fields
-                x1 = st.number_input("X1", min_value=0, value=50, step=1)
-                y1 = st.number_input("Y1", min_value=0, value=50, step=1)
-                x2 = st.number_input("X2", min_value=0, value=200, step=1)
-                y2 = st.number_input("Y2", min_value=0, value=200, step=1)
-
-                if st.button("Save ROI"):
-                    st.session_state["roi_coords"] = [(x1, y1), (x2, y2)]
-                    st.success(f"ROI Saved: {st.session_state['roi_coords']}")
-            else:
-                st.error("Could not extract frame for ROI selection.")
+        cap = cv2.VideoCapture(st.session_state["temp_video_path"])
+        ret, frame = cap.read()
+        cap.release()
+        if not ret:
+            st.error("Error: Could not read video frame.")
         else:
-            st.error("Could not open video file.")
+            roi_coords = select_roi_opencv(frame)
+            if len(roi_coords) == 4:
+                st.session_state["roi_coords"] = roi_coords
+                st.success(f"ROI Selected: {st.session_state['roi_coords']}")
+            else:
+                st.warning("ROI selection was incomplete.")
 
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
