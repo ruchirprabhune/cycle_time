@@ -7,7 +7,7 @@ opencv-python
 pillow
 torch
 ultralytics
-
+python-dotenv
 numpy
 pandas
 matplotlib
