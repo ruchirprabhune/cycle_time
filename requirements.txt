@@ -2,7 +2,7 @@ plotly
 streamlit
 streamlit-plotly-events
 streamlit-drawable-canvas
-
+opencv-python-headless
 opencv-python
 pillow
 torch
