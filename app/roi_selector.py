@@ -1,16 +1,15 @@
 import cv2
 import numpy as np
 import streamlit as st
+from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 
-# Initialize session state for storing ROI points
+# Initialize session state for ROI points
 if "roi_points" not in st.session_state:
     st.session_state.roi_points = []
 
 def select_roi(video_path):
-    """ 
-    Allows user to select a polygonal ROI by clicking on a frame using Streamlit's interactive image.
-    """
+    """ Allows user to select a polygonal ROI by clicking on a frame using an interactive canvas. """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         st.error("Error: Could not open video file.")
@@ -32,19 +31,33 @@ def select_roi(video_path):
     # Display instructions
     st.write("### Click four points to define a polygonal ROI.")
 
-    # Display image for selection
-    selected_points = st.session_state.roi_points
+    # Streamlit Canvas for ROI Selection
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 0, 0, 0.3)",  # Transparent red
+        stroke_width=2,
+        stroke_color="red",
+        background_image=img,
+        height=frame.shape[0],
+        width=frame.shape[1],
+        drawing_mode="point",  # Enables clicking to select points
+        key="canvas",
+    )
 
-    # Use Streamlit's image-clicking function (Streamlit doesn't support native OpenCV mouse events)
-    clicked = st.image(img, caption="Click to Select ROI", use_column_width=True)
+    # Capture clicked points
+    if canvas_result.json_data is not None:
+        objects = canvas_result.json_data["objects"]
+        if len(objects) == 4:
+            st.session_state.roi_points = [(int(obj["left"]), int(obj["top"])) for obj in objects]
 
-    # Button to confirm selection
+    # Show selected points
+    if len(st.session_state.roi_points) == 4:
+        st.success(f"ROI Selected: {st.session_state.roi_points}")
+
+    # Confirm selection
     if st.button("Confirm ROI Selection"):
-        if len(selected_points) != 4:
-            st.error("Please select exactly 4 points before confirming.")
-            return None
+        if len(st.session_state.roi_points) == 4:
+            return st.session_state.roi_points
         else:
-            st.success(f"ROI Selected: {selected_points}")
-            return selected_points
+            st.error("Please select exactly 4 points.")
 
     return None
