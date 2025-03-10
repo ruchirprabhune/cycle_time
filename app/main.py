@@ -3,24 +3,20 @@ import os
 import multiprocessing
 import pandas as pd
 import plotly.express as px
-from streamlit_plotly_events import plotly_events
-import openai
-from tkinter_gui import run_tkinter
-from process_video import process_video_with_roi
-from dotenv import load_dotenv
 import cv2
 import time
-import streamlit as st
+import openai
+from dotenv import load_dotenv
 import login
+from process_video import process_video_with_roi
+from roi_selector import select_roi  # <-- Use the new ROI selector
 
 # Display login page if not logged in
 if not st.session_state.get("logged_in", False):
     login.login_page()
     st.stop()  # Stop execution so login page is shown
 
-# Now the main app is accessible only after login
 st.title(f"Welcome, {st.session_state['username']}!")
-
 st.write("This is your secured dashboard.")
 
 load_dotenv()
@@ -39,7 +35,7 @@ for state in session_states:
 
 st.title("AI Cycle Time Analysis")
 
-# Option for live stream input
+# Video Upload or Live Stream
 live_stream_option = st.checkbox("Enable Live Stream Input (Record from Webcam)")
 
 if live_stream_option:
@@ -75,21 +71,17 @@ if not live_stream_option:
         st.session_state["uploaded_video_path"] = uploaded_file.name
         st.session_state["temp_video_path"] = file_path  # Save path for processing
 
-# Proceed if we have a video file path available
+# Proceed if a video is uploaded
 if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        result_queue = multiprocessing.Queue()
-        # Use the stored temp_video_path
         temp_video_path = st.session_state["temp_video_path"]
-        process = multiprocessing.Process(target=run_tkinter, args=(temp_video_path, result_queue))
-        process.start()
-        process.join()
-
-        if not result_queue.empty():
-            st.session_state["roi_coords"] = result_queue.get()
-            st.success(f"ROI Selected: {st.session_state['roi_coords']}")
+        roi_coords = select_roi(temp_video_path)
+        
+        if roi_coords:
+            st.session_state["roi_coords"] = roi_coords
+            st.success(f"ROI Selected: {roi_coords}")
         else:
             st.warning("No ROI was selected.")
 
@@ -104,6 +96,7 @@ if st.session_state["temp_video_path"]:
             st.session_state["output_video_path"] = os.path.basename(output_video_path)
             st.success("Processing complete!")
 
+            # Generate Cycle Time Table
             if cycle_times:
                 df = pd.DataFrame({
                     "Cycle No.": range(1, len(cycle_times) + 1),
@@ -119,6 +112,7 @@ if st.session_state["temp_video_path"]:
                 )
                 st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
+                # Plot the cycle time data
                 st.plotly_chart(
                     px.bar(
                         df, 
@@ -129,13 +123,4 @@ if st.session_state["temp_video_path"]:
                         text_auto=True
                     ).update_traces(marker_color='blue', textposition='outside')
                 )
-
-                st.write("### Maximum Cycle Analysis")
-                max_cycle_time = df["Cycle Time (s)"].max()
-                max_cycles = df[df["Cycle Time (s)"] == max_cycle_time]
-                st.write(f"The maximum cycle time is *{max_cycle_time:.2f} seconds*.")
-                for _, row in max_cycles.iterrows():
-                    st.write(f"*Cycle {row['Cycle No.']}* ran from *{row['Start Time (s)']}s* to *{row['End Time (s)']}s* with a duration of *{row['Cycle Time (s)']:.2f} seconds*.")
-                    clip_link = f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Maximum Cycle {row["Cycle No."]}</a>'
-                    st.markdown(clip_link, unsafe_allow_html=True)
 
