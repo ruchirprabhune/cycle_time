@@ -11,39 +11,37 @@ if "roi_points" not in st.session_state:
 
 def select_roi(video_path):
     """ Allows user to select a polygonal ROI by clicking on a frame using an interactive canvas. """
-    
-    # Check if the file exists
+
+    # Check if file exists
     if not os.path.exists(video_path):
         st.error(f"Error: Video file not found at {video_path}")
         return None
 
     cap = cv2.VideoCapture(video_path)
-    
+
     if not cap.isOpened():
         st.error("Error: Could not open video file.")
         return None
 
     ret, frame = cap.read()
     cap.release()
-    
+
     if not ret or frame is None:
-        st.error("Error: Could not read the first frame of the video.")
+        st.error("Error: Could not read the first frame of the video. Ensure the file is not corrupted.")
         return None
 
-    # Convert frame to RGB for display in Streamlit
     try:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     except cv2.error:
         st.error("Error: Failed to convert the frame to RGB.")
         return None
 
-    # Ensure frame is not empty before passing to st_canvas
     if frame_rgb is None or frame_rgb.size == 0:
         st.error("Error: Invalid frame content.")
         return None
 
     # Convert OpenCV image to PIL format for Streamlit
-    img = Image.fromarray(frame_rgb)  # ✅ Use PIL image for st_canvas
+    img = Image.fromarray(frame_rgb)
 
     # Display instructions
     st.write("### Click four points to define a polygonal ROI.")
