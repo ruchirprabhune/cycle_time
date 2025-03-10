@@ -36,10 +36,10 @@ def select_roi(video_path):
         fill_color="rgba(255, 0, 0, 0.3)",  # Transparent red
         stroke_width=2,
         stroke_color="red",
-        background_image=img,
+        background_image=np.array(img),  # ✅ Fixed: Convert back to NumPy
         height=frame.shape[0],
         width=frame.shape[1],
-        drawing_mode="point",  # Enables clicking to select points
+        drawing_mode="point",
         key="canvas",
     )
 
