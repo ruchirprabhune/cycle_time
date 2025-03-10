@@ -11,6 +11,7 @@ if "roi_points" not in st.session_state:
 def select_roi(video_path):
     """ Allows user to select a polygonal ROI by clicking on a frame using an interactive canvas. """
     cap = cv2.VideoCapture(video_path)
+    
     if not cap.isOpened():
         st.error("Error: Could not open video file.")
         return None
@@ -18,15 +19,24 @@ def select_roi(video_path):
     ret, frame = cap.read()
     cap.release()
     
-    if not ret:
+    if not ret or frame is None:
         st.error("Error: Could not read the first frame of the video.")
         return None
 
-    # Convert frame to RGB for display in Streamlit
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # Convert frame to RGB (ensure valid conversion)
+    try:
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    except cv2.error:
+        st.error("Error: Failed to convert the frame to RGB.")
+        return None
 
-    # Convert OpenCV image to PIL format for Streamlit
-    img = Image.fromarray(frame_rgb)
+    # Ensure frame is not empty before passing to st_canvas
+    if frame_rgb is None or frame_rgb.size == 0:
+        st.error("Error: Invalid frame content.")
+        return None
+
+    # Convert OpenCV image to NumPy array for Streamlit
+    img_array = np.array(frame_rgb)
 
     # Display instructions
     st.write("### Click four points to define a polygonal ROI.")
@@ -36,9 +46,9 @@ def select_roi(video_path):
         fill_color="rgba(255, 0, 0, 0.3)",  # Transparent red
         stroke_width=2,
         stroke_color="red",
-        background_image=np.array(img),  # ✅ Fixed: Convert back to NumPy
-        height=frame.shape[0],
-        width=frame.shape[1],
+        background_image=img_array,  # ✅ Fixed: Ensure valid NumPy array
+        height=frame_rgb.shape[0],
+        width=frame_rgb.shape[1],
         drawing_mode="point",
         key="canvas",
     )
