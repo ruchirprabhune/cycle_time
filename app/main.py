@@ -3,13 +3,12 @@ import os
 import multiprocessing
 import pandas as pd
 import plotly.express as px
+from dotenv import load_dotenv
 import cv2
 import time
-import openai
-from dotenv import load_dotenv
 import login
+from roi_selector import select_roi
 from process_video import process_video_with_roi
-from roi_selector import select_roi  # <-- Use the new ROI selector
 
 # Display login page if not logged in
 if not st.session_state.get("logged_in", False):
@@ -20,22 +19,18 @@ st.title(f"Welcome, {st.session_state['username']}!")
 st.write("This is your secured dashboard.")
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 VIDEO_SERVER_URL = "http://127.0.0.1:9000"
 
 # Initialize session states
-session_states = [
-    "roi_coords", "selected_cycle", "df",
-    "output_video_path", "uploaded_video_path", "temp_video_path"
-]
+session_states = ["roi_coords", "df", "output_video_path", "uploaded_video_path", "temp_video_path"]
 for state in session_states:
     if state not in st.session_state:
         st.session_state[state] = None
 
 st.title("AI Cycle Time Analysis")
 
-# Video Upload or Live Stream
+# Option for live stream input
 live_stream_option = st.checkbox("Enable Live Stream Input (Record from Webcam)")
 
 if live_stream_option:
@@ -71,24 +66,23 @@ if not live_stream_option:
         st.session_state["uploaded_video_path"] = uploaded_file.name
         st.session_state["temp_video_path"] = file_path  # Save path for processing
 
-# Proceed if a video is uploaded
+# Proceed if we have a video file path available
 if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        temp_video_path = st.session_state["temp_video_path"]
-        roi_coords = select_roi(temp_video_path)
-        
+        roi_coords = select_roi(st.session_state["temp_video_path"])
         if roi_coords:
             st.session_state["roi_coords"] = roi_coords
             st.success(f"ROI Selected: {roi_coords}")
         else:
-            st.warning("No ROI was selected.")
+            st.warning("No ROI was selected. Please try again.")
 
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
         temp_video_path = st.session_state["temp_video_path"]
         result = process_video_with_roi(temp_video_path, st.session_state["roi_coords"], frame_rate)
+        
         if result is None:
             st.error("Error: Failed to process the video.")
         else:
@@ -96,7 +90,6 @@ if st.session_state["temp_video_path"]:
             st.session_state["output_video_path"] = os.path.basename(output_video_path)
             st.success("Processing complete!")
 
-            # Generate Cycle Time Table
             if cycle_times:
                 df = pd.DataFrame({
                     "Cycle No.": range(1, len(cycle_times) + 1),
@@ -112,7 +105,6 @@ if st.session_state["temp_video_path"]:
                 )
                 st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-                # Plot the cycle time data
                 st.plotly_chart(
                     px.bar(
                         df, 
@@ -124,3 +116,10 @@ if st.session_state["temp_video_path"]:
                     ).update_traces(marker_color='blue', textposition='outside')
                 )
 
+                st.write("### Maximum Cycle Analysis")
+                max_cycle_time = df["Cycle Time (s)"].max()
+                max_cycles = df[df["Cycle Time (s)"] == max_cycle_time]
+                st.write(f"The maximum cycle time is *{max_cycle_time:.2f} seconds*.")
+                for _, row in max_cycles.iterrows():
+                    clip_link = f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Maximum Cycle {row["Cycle No."]}</a>'
+                    st.markdown(clip_link, unsafe_allow_html=True)
