@@ -80,7 +80,6 @@ if st.session_state["temp_video_path"]:
         else:
             st.error("No video uploaded! Please upload a video first.")
 
-
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
         temp_video_path = st.session_state["temp_video_path"]
@@ -119,10 +118,3 @@ if st.session_state["temp_video_path"]:
                     ).update_traces(marker_color='blue', textposition='outside')
                 )
 
-                st.write("### Maximum Cycle Analysis")
-                max_cycle_time = df["Cycle Time (s)"].max()
-                max_cycles = df[df["Cycle Time (s)"] == max_cycle_time]
-                st.write(f"The maximum cycle time is *{max_cycle_time:.2f} seconds*.")
-                for _, row in max_cycles.iterrows():
-                    clip_link = f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Maximum Cycle {row["Cycle No."]}</a>'
-                    st.markdown(clip_link, unsafe_allow_html=True)
