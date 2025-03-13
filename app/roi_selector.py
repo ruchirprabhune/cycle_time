@@ -16,12 +16,21 @@ def extract_first_frame(video_path):
     ret, frame = cap.read()
     cap.release()
     
-    if ret:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert to RGB
-        return Image.fromarray(frame)  # Convert NumPy array to PIL image
-    else:
-        st.error("Error: Could not extract frame from video.")
+    if not ret:
+        st.error("Error: Could not extract a frame from the video.")
         return None
+
+    # Convert frame to PIL Image
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+    pil_image = Image.fromarray(frame)
+
+    # Debugging: Check if image is valid
+    if pil_image is None:
+        st.error("Extracted frame is None. Image conversion failed.")
+    else:
+        st.write("Extracted frame successfully.")
+
+    return pil_image
 
 def select_roi(video_path):
     """Allows the user to draw a polygon ROI on the first frame of the video."""
@@ -34,24 +43,30 @@ def select_roi(video_path):
 
     # Extract the first frame
     frame_image = extract_first_frame(video_path)
-    
+
+    # Debugging: Check if image is valid before passing to st_canvas
     if frame_image is None:
-        st.error("Failed to load video frame. Check file path and format.")
+        st.error("Failed to load video frame. Cannot proceed.")
         return  # Exit function if no valid image
 
+    # Display the image
     st.image(frame_image, caption="Extracted Frame for ROI", use_container_width=True)
 
     # Draw ROI using `st_canvas()`
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",  # Transparent fill color
-        stroke_width=2,
-        stroke_color="#FF0000",
-        background_image=frame_image,  # Ensure it's a valid PIL Image
-        height=frame_image.height,
-        width=frame_image.width,
-        drawing_mode="polygon",
-        key="canvas",
-    )
+    try:
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",  # Transparent fill color
+            stroke_width=2,
+            stroke_color="#FF0000",
+            background_image=frame_image,  # Ensure it's a valid PIL Image
+            height=frame_image.height,
+            width=frame_image.width,
+            drawing_mode="polygon",
+            key="canvas",
+        )
+    except AttributeError as e:
+        st.error(f"Error in st_canvas: {e}")
+        return
 
     # Save ROI Button
     if st.button("Save ROI"):
@@ -75,3 +90,4 @@ def save_roi_coordinates(roi_coords):
     roi_file = "roi_coordinates.json"
     with open(roi_file, "w") as f:
         json.dump(roi_coords, f)
+
