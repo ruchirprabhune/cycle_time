@@ -1,20 +1,13 @@
-import cv2
-import numpy as np
-import streamlit as st
-from streamlit_drawable_canvas import st_canvas
-from PIL import Image
-import os
+import tempfile  # Add this import
 
 def select_roi(video_path):
     """ Allows user to select a polygonal ROI by clicking on a frame using an interactive canvas. """
 
-    # Check if file exists
     if not os.path.exists(video_path):
         st.error(f"Error: Video file not found at {video_path}")
         return None
 
     cap = cv2.VideoCapture(video_path)
-
     if not cap.isOpened():
         st.error("Error: Could not open video file.")
         return None
@@ -29,13 +22,19 @@ def select_roi(video_path):
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     img = Image.fromarray(frame_rgb)
 
+    # Save image as a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
+        img.save(temp_file.name)
+        temp_img_path = temp_file.name  # Get file path
+
     st.write("### Click exactly four points to define a polygonal ROI.")
 
+    # Load the saved image in st_canvas
     canvas_result = st_canvas(
         fill_color="rgba(255, 0, 0, 0.3)",
         stroke_width=2,
         stroke_color="red",
-        background_image=img,
+        background_image=temp_img_path,  # ✅ Now a valid file path
         height=frame.shape[0],
         width=frame.shape[1],
         drawing_mode="point",
@@ -51,6 +50,7 @@ def select_roi(video_path):
             return roi_points
         elif len(roi_points) > 4:
             st.error("Please select exactly 4 points.")
-    
+
     return None
+
 
