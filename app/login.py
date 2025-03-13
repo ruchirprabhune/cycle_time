@@ -1,26 +1,15 @@
 import streamlit as st
-import hashlib
-import json
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-# File to store user credentials
-USER_DATA_FILE = "app/utils/users.json"
+# Load environment variables
+load_dotenv()
 
-# Function to load user credentials
-def load_users():
-    if os.path.exists(USER_DATA_FILE):
-        with open(USER_DATA_FILE, "r") as file:
-            return json.load(file)
-    return {}
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Function to save user credentials
-def save_users(users):
-    with open(USER_DATA_FILE, "w") as file:
-        json.dump(users, file, indent=4)
-
-# Function to hash passwords
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Ensure session state variables exist
 if "logged_in" not in st.session_state:
@@ -32,41 +21,46 @@ if "username" not in st.session_state:
 def login_page():
     st.title("Login Page")
 
-    users = load_users()
-
     menu = ["Login", "Sign Up"]
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Login":
         st.subheader("Login")
-        username = st.text_input("Username")
+        email = st.text_input("Email")
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            hashed_password = hash_password(password)
-            if username in users and users[username] == hashed_password:
-                st.session_state["logged_in"] = True
-                st.session_state["username"] = username
-                st.success(f"Welcome {username}! Redirecting...")
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
+            try:
+                response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                user = response.user
+                if user:
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = email
+                    st.success(f"Welcome {email}! Redirecting...")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Login failed: {str(e)}")
 
     elif choice == "Sign Up":
         st.subheader("Create New Account")
-        new_user = st.text_input("New Username")
-        new_password = st.text_input("New Password", type="password")
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
 
         if st.button("Sign Up"):
-            if new_user in users:
-                st.warning("Username already exists. Choose a different one.")
-            else:
-                users[new_user] = hash_password(new_password)
-                save_users(users)
-                st.success("Account created successfully! Please log in.")
+            try:
+                response = supabase.auth.sign_up({"email": email, "password": password})
+                if response:
+                    st.success("Account created successfully! Please log in.")
+            except Exception as e:
+                st.error(f"Sign-up failed: {str(e)}")
 
 # Protect pages - Redirect to login if not authenticated
 def require_login():
-    if not st.session_state.get("logged_in", False):
-        st.warning("You must log in to access this page.")
+    if not st.session_state["logged_in"]:
+        st.warning("Please log in to access this page.")
         st.stop()
+
+# Run the login page
+if __name__ == "__main__":
+    login_page()
+
