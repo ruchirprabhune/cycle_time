@@ -50,7 +50,7 @@ if live_stream_option:
                 if not ret:
                     break
                 out.write(frame)
-                frame_placeholder.image(frame, channels="BGR")
+                frame_placeholder.image(frame, channels="BGR", use_container_width=True)
             cap.release()
             out.release()
             st.success("Live stream captured!")
