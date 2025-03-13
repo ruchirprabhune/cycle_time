@@ -71,12 +71,15 @@ if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     if st.button("Select Region of Interest"):
-        roi_coords = select_roi(st.session_state["temp_video_path"])
-        if roi_coords:
-            st.session_state["roi_coords"] = roi_coords
-            st.success(f"ROI Selected: {roi_coords}")
+        if st.session_state["temp_video_path"]:
+            select_roi(st.session_state["temp_video_path"])
+            if st.session_state["roi_coords"]:
+                st.success(f"ROI Selected: {st.session_state['roi_coords']}")
+            else:
+                st.warning("No ROI was selected. Please try again.")
         else:
-            st.warning("No ROI was selected. Please try again.")
+            st.error("No video uploaded! Please upload a video first.")
+
 
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
