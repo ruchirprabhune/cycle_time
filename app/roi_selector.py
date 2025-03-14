@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import os
 
-# Global variable to store ROI points
+# Global variable for storing ROI points
 roi_points = []
 
 def extract_first_frame(video_path):
@@ -74,6 +74,4 @@ if st.button("Select ROI"):
             st.error("ROI selection failed.")
     else:
         st.error("Invalid video path. Please enter a correct path.")
-
-
 
