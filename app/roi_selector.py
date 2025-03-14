@@ -1,57 +1,79 @@
+import streamlit as st
 import cv2
 import numpy as np
-import streamlit as st
-from PIL import Image
+import os
 
-def select_roi(video_path):
-    """ Allows the user to click on four points in Streamlit to define a polygonal ROI """
+# Global variable to store ROI points
+roi_points = []
 
-    # Extract the first frame of the video
+def extract_first_frame(video_path):
+    """Extracts the first frame from the given video file."""
     cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        st.error("Error: Could not open video.")
+        return None
+    
     ret, frame = cap.read()
     cap.release()
-
+    
     if not ret:
-        st.error("Failed to extract frame from video.")
+        st.error("Error: Could not read the first frame.")
+        return None
+    
+    return frame
+
+def click_event(event, x, y, flags, param):
+    """Mouse callback function to store clicked points."""
+    global roi_points
+    if event == cv2.EVENT_LBUTTONDOWN and len(roi_points) < 4:
+        roi_points.append((x, y))
+        print(f"Point selected: {x}, {y}")
+
+def select_roi(video_path):
+    """Opens OpenCV window to select ROI and returns four selected points."""
+    global roi_points
+    roi_points = []  # Reset points
+    
+    frame = extract_first_frame(video_path)
+    if frame is None:
         return None
 
-    # Convert the OpenCV image (BGR) to RGB for Streamlit
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img = Image.fromarray(frame_rgb)
+    clone = frame.copy()  # Create a copy to draw on
+    cv2.namedWindow("Select ROI - Click 4 Points")
+    cv2.setMouseCallback("Select ROI - Click 4 Points", click_event)
 
-    # Display the extracted frame in Streamlit
-    st.write("### Click exactly four points to define the ROI.")
-    st.image(img, use_column_width=True)
+    while True:
+        temp_frame = clone.copy()
+        
+        # Draw selected points
+        for point in roi_points:
+            cv2.circle(temp_frame, point, 5, (0, 0, 255), -1)
 
-    # Initialize or reset selection
-    if "roi_points" not in st.session_state:
-        st.session_state.roi_points = []
+        cv2.imshow("Select ROI - Click 4 Points", temp_frame)
+        key = cv2.waitKey(1) & 0xFF
 
-    # Collect user clicks
-    clicked_point = st.text_input("Enter ROI points (e.g., '100,200') and press Enter:")
+        # Break loop when 4 points are selected and user presses Enter (key 13)
+        if key == 13 and len(roi_points) == 4:
+            break
 
-    if clicked_point:
-        try:
-            x, y = map(int, clicked_point.split(","))
-            if 0 <= x < frame.shape[1] and 0 <= y < frame.shape[0]:
-                st.session_state.roi_points.append((x, y))
-                st.success(f"Point {len(st.session_state.roi_points)} added: ({x}, {y})")
-            else:
-                st.error("Point out of bounds. Try again.")
-        except ValueError:
-            st.error("Invalid format. Enter coordinates as 'x,y'.")
+    cv2.destroyAllWindows()
+    
+    # Convert ROI points to a format usable in Streamlit
+    return roi_points
 
-    # Display the selected points
-    if st.session_state.roi_points:
-        st.write(f"Selected Points: {st.session_state.roi_points}")
+# Streamlit UI
+st.title("ROI Selection Tool")
+video_path = st.text_input("Enter path to the video file:")
 
-    # Check if exactly 4 points were selected
-    if len(st.session_state.roi_points) == 4:
-        st.success("ROI selection complete.")
-        return st.session_state.roi_points
-
-    return None
-
+if st.button("Select ROI"):
+    if os.path.exists(video_path):
+        selected_points = select_roi(video_path)
+        if selected_points:
+            st.success(f"Selected ROI Points: {selected_points}")
+        else:
+            st.error("ROI selection failed.")
+    else:
+        st.error("Invalid video path. Please enter a correct path.")
 
 
 
