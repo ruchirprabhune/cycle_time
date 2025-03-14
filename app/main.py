@@ -12,6 +12,7 @@ import time
 import login
 from streamlit_drawable_canvas import st_canvas
 import numpy as np
+from PIL import Image
 
 # Display login page if not logged in
 if not st.session_state.get("logged_in", False):
@@ -91,7 +92,7 @@ if st.session_state["temp_video_path"]:
             st.error("Error: Could not read the first frame.")
             return None
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return frame
+        return Image.fromarray(frame)  # Convert to PIL image
 
     frame = extract_first_frame(st.session_state["temp_video_path"])
     
@@ -105,8 +106,8 @@ if st.session_state["temp_video_path"]:
             stroke_color="red",
             background_image=frame,
             update_streamlit=True,
-            height=frame.shape[0],
-            width=frame.shape[1],
+            height=frame.height,
+            width=frame.width,
             drawing_mode="polygon",
             key="canvas",
         )
@@ -132,39 +133,3 @@ if st.session_state["temp_video_path"]:
             output_video_path, timestamps, cycle_times, max_cycle_video_path = result
             st.session_state["output_video_path"] = os.path.basename(output_video_path)
             st.success("Processing complete!")
-
-            if cycle_times:
-                df = pd.DataFrame({
-                    "Cycle No.": range(1, len(cycle_times) + 1),
-                    "Start Time (s)": timestamps[:-1],
-                    "End Time (s)": timestamps[1:] if len(timestamps) > 1 else timestamps,
-                    "Cycle Time (s)": cycle_times
-                })
-                st.session_state["df"] = df
-                st.write("### Cycle Time Table")
-                df["Video Link"] = df.apply(
-                    lambda row: f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Cycle {row["Cycle No."]}</a>',
-                    axis=1
-                )
-                st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-                st.plotly_chart(
-                    px.bar(
-                        df, 
-                        x="Cycle No.", 
-                        y="Cycle Time (s)", 
-                        title="Cycle Time Analysis",
-                        labels={"Cycle No.": "Cycle Number", "Cycle Time (s)": "Cycle Duration (s)"},
-                        text_auto=True
-                    ).update_traces(marker_color='blue', textposition='outside')
-                )
-
-                st.write("### Maximum Cycle Analysis")
-                max_cycle_time = df["Cycle Time (s)"].max()
-                max_cycles = df[df["Cycle Time (s)"] == max_cycle_time]
-                st.write(f"The maximum cycle time is *{max_cycle_time:.2f} seconds*.")
-                for _, row in max_cycles.iterrows():
-                    st.write(f"*Cycle {row['Cycle No.']}* ran from *{row['Start Time (s)']}s* to *{row['End Time (s)']}s* with a duration of *{row['Cycle Time (s)']:.2f} seconds*.")
-                    clip_link = f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Maximum Cycle {row["Cycle No."]}</a>'
-                    st.markdown(clip_link, unsafe_allow_html=True)
-
