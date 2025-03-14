@@ -14,7 +14,6 @@ if not st.session_state.get("logged_in", False):
     login.login_page()
     st.stop()
 
-# Main app starts here
 st.title(f"Welcome, {st.session_state['username']}!")
 st.write("This is your secured dashboard.")
 
@@ -58,7 +57,7 @@ if live_stream_option:
             out.release()
             st.success("Live stream captured!")
             st.session_state["uploaded_video_path"] = "live_stream.mp4"
-            st.session_state["temp_video_path"] = live_video_path  # Save path for processing
+            st.session_state["temp_video_path"] = live_video_path
 
 if not live_stream_option:
     uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov"])
@@ -67,63 +66,72 @@ if not live_stream_option:
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         st.session_state["uploaded_video_path"] = uploaded_file.name
-        st.session_state["temp_video_path"] = file_path  # Save path for processing
+        st.session_state["temp_video_path"] = file_path
 
-# Proceed if we have a video file path available
 if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
-    # Extract the first frame for ROI selection
     def extract_first_frame(video_path):
+        if not os.path.exists(video_path):
+            st.error(f"Error: Video file not found at {video_path}")
+            return None
+
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            st.error("Error: Could not open video.")
+            st.error("Error: Could not open video file.")
             return None
+
         ret, frame = cap.read()
         cap.release()
+
         if not ret:
             st.error("Error: Could not read the first frame.")
             return None
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(frame)  # Convert to PIL image
+        return Image.fromarray(frame)
 
     frame = extract_first_frame(st.session_state["temp_video_path"])
 
-    if frame is not None:
-        st.write("### Draw Region of Interest (ROI) on the frame below")
+    if frame is None:
+        st.stop()
 
-        # ROI selection using Streamlit Drawable Canvas
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",  # Transparent fill
-            stroke_width=3,
-            stroke_color="red",
-            background_image=frame,  # Ensure it's a PIL image
-            update_streamlit=True,
-            height=frame.height,
-            width=frame.width,
-            drawing_mode="polygon",
-            key="canvas",
-        )
+    st.write("### Draw Region of Interest (ROI) on the frame below")
 
-        # Extract ROI points
-        if canvas_result.json_data is not None:
-            objects = canvas_result.json_data["objects"]
-            if objects:
-                roi_coords = [(int(obj["left"]), int(obj["top"])) for obj in objects]
-                st.session_state["roi_coords"] = roi_coords
-                st.success(f"ROI Selected: {st.session_state['roi_coords']}")
-            else:
-                st.warning("No ROI selected. Please draw a polygon.")
+    from streamlit.components.v1 import image_to_url  # Required for conversion
 
-        # Start processing when ROI is selected
-        if st.session_state.get("roi_coords") and st.button("Start Processing"):
-            st.write("Processing video... Please wait.")
-            temp_video_path = st.session_state["temp_video_path"]
-            result = process_video_with_roi(temp_video_path, st.session_state["roi_coords"], frame_rate)
+    # Convert PIL image to URL for st_canvas
+    frame_url = st.image(frame, use_column_width=True).image_to_url(frame)
 
-            if result is None:
-                st.error("Error: Failed to process the video.")
-            else:
-                output_video_path, timestamps, cycle_times, max_cycle_video_path = result
-                st.session_state["output_video_path"] = os.path.basename(output_video_path)
-                st.success("Processing complete!")
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",  
+        stroke_width=3,
+        stroke_color="red",
+        background_image=frame_url,  
+        update_streamlit=True,
+        height=frame.height,
+        width=frame.width,
+        drawing_mode="polygon",
+        key="canvas",
+    )
+
+    if canvas_result.json_data is not None:
+        objects = canvas_result.json_data["objects"]
+        if objects:
+            roi_coords = [(int(obj["left"]), int(obj["top"])) for obj in objects]
+            st.session_state["roi_coords"] = roi_coords
+            st.success(f"ROI Selected: {st.session_state['roi_coords']}")
+        else:
+            st.warning("No ROI selected. Please draw a polygon.")
+
+    if st.session_state.get("roi_coords") and st.button("Start Processing"):
+        st.write("Processing video... Please wait.")
+        temp_video_path = st.session_state["temp_video_path"]
+        result = process_video_with_roi(temp_video_path, st.session_state["roi_coords"], frame_rate)
+
+        if result is None:
+            st.error("Error: Failed to process the video.")
+        else:
+            output_video_path, timestamps, cycle_times, max_cycle_video_path = result
+            st.session_state["output_video_path"] = os.path.basename(output_video_path)
+            st.success("Processing complete!")
