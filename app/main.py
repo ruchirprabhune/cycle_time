@@ -28,34 +28,46 @@ for state in session_states:
     if state not in st.session_state:
         st.session_state[state] = None
 
+
 st.title("AI Cycle Time Analysis")
 
-# Option for live stream input
+# 📌 Function to record live stream
+def record_live_stream():
+    st.write("Recording live stream for 10 seconds...")
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        st.error("Error: Could not open webcam.")
+        return
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    live_video_path = os.path.join("processed_videos", "live_stream.mp4")
+    out = cv2.VideoWriter(live_video_path, fourcc, 20.0, (640, 480))
+
+    start_time = time.time()
+    frame_placeholder = st.empty()
+
+    while time.time() - start_time < 10:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        out.write(frame)
+        frame_placeholder.image(frame, channels="BGR", use_container_width=True)
+        time.sleep(0.05)  # Added delay for smooth display
+
+    cap.release()
+    out.release()
+    st.success("Live stream captured!")
+    
+    st.session_state["uploaded_video_path"] = "live_stream.mp4"
+    st.session_state["temp_video_path"] = live_video_path  # Save path for processing
+
+# 📌 Video Upload Section
 live_stream_option = st.checkbox("Enable Live Stream Input (Record from Webcam)")
 
 if live_stream_option:
-    if st.button("Start Live Stream Recording (10 seconds)"):
-        st.write("Recording live stream for 10 seconds...")
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            st.error("Error: Could not open webcam.")
-        else:
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            live_video_path = os.path.join("processed_videos", "live_stream.mp4")
-            out = cv2.VideoWriter(live_video_path, fourcc, 20.0, (640, 480))
-            start_time = time.time()
-            frame_placeholder = st.empty()
-            while time.time() - start_time < 10:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                out.write(frame)
-                frame_placeholder.image(frame, channels="BGR", use_container_width=True)
-            cap.release()
-            out.release()
-            st.success("Live stream captured!")
-            st.session_state["uploaded_video_path"] = "live_stream.mp4"
-            st.session_state["temp_video_path"] = live_video_path  # Save path for processing
+    if st.button("Start Live Stream Recording"):
+        record_live_stream()
 
 if not live_stream_option:
     uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov"])
@@ -66,23 +78,24 @@ if not live_stream_option:
         st.session_state["uploaded_video_path"] = uploaded_file.name
         st.session_state["temp_video_path"] = file_path  # Save path for processing
 
-# Proceed if we have a video file path available
+# 📌 Ensure a video file is selected
 if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
+    # ROI Selection
     if st.button("Select Region of Interest"):
-        if st.session_state["temp_video_path"]:
-            select_roi(st.session_state["temp_video_path"])
-            if st.session_state["roi_coords"]:
-                st.success(f"ROI Selected: {st.session_state['roi_coords']}")
-            else:
-                st.warning("No ROI was selected. Please try again.")
+        roi_points = select_roi(st.session_state["temp_video_path"])
+        if roi_points:
+            st.session_state["roi_coords"] = roi_points
+            st.success(f"ROI Selected: {st.session_state['roi_coords']}")
         else:
-            st.error("No video uploaded! Please upload a video first.")
+            st.warning("No ROI was selected. Please try again.")
 
+    # Processing Video
     if st.session_state["roi_coords"] and st.button("Start Processing"):
         st.write("Processing video... Please wait.")
         temp_video_path = st.session_state["temp_video_path"]
+        
         result = process_video_with_roi(temp_video_path, st.session_state["roi_coords"], frame_rate)
         
         if result is None:
@@ -100,6 +113,7 @@ if st.session_state["temp_video_path"]:
                     "Cycle Time (s)": cycle_times
                 })
                 st.session_state["df"] = df
+
                 st.write("### Cycle Time Table")
                 df["Video Link"] = df.apply(
                     lambda row: f'<a href="{VIDEO_SERVER_URL}/{st.session_state["uploaded_video_path"]}?start={int(row["Start Time (s)"])}&end={int(row["End Time (s)"])}" target="_blank">▶️ Play Cycle {row["Cycle No."]}</a>',
