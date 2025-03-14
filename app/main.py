@@ -81,37 +81,36 @@ if st.session_state["temp_video_path"]:
     frame_rate = st.slider("Select frame rate (FPS)", min_value=1, max_value=30, value=10, step=1)
 
     # Extract the first frame for ROI selection
-    def extract_first_frame(video_path):
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            st.error("Error: Could not open video.")
-            return None
-        ret, frame = cap.read()
-        cap.release()
-        if not ret:
-            st.error("Error: Could not read the first frame.")
-            return None
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(frame)  # Convert to PIL image
+def extract_first_frame(video_path):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        st.error("Error: Could not open video.")
+        return None
+    ret, frame = cap.read()
+    cap.release()
+    if not ret:
+        st.error("Error: Could not read the first frame.")
+        return None
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(frame)  # Convert to PIL image
 
-    frame = extract_first_frame(st.session_state["temp_video_path"])
-    
-    if frame is not None:
-        st.write("### Draw Region of Interest (ROI) on the frame below")
+frame = extract_first_frame(st.session_state["temp_video_path"])
 
-        # ROI selection using Streamlit Drawable Canvas
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",  # Transparent fill
-            stroke_width=3,
-            stroke_color="red",
-            background_image=frame,
-            update_streamlit=True,
-            height=frame.height,
-            width=frame.width,
-            drawing_mode="polygon",
-            key="canvas",
-        )
+if frame is not None:
+    st.write("### Draw Region of Interest (ROI) on the frame below")
 
+    # ROI selection using Streamlit Drawable Canvas
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",  # Transparent fill
+        stroke_width=3,
+        stroke_color="red",
+        background_image=frame,  # Ensure it's a PIL image
+        update_streamlit=True,
+        height=frame.height,
+        width=frame.width,
+        drawing_mode="polygon",
+        key="canvas",
+    )
         # Extract ROI points
         if canvas_result.json_data is not None:
             objects = canvas_result.json_data["objects"]
